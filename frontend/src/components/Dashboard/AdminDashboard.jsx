@@ -26,6 +26,11 @@ const AdminDashboard = () => {
     applyFilters();
   }, [jobs, filters]);
 
+  // Recalculate stats whenever jobs change
+  useEffect(() => {
+    calculateStats();
+  }, [jobs]);
+
   const fetchJobs = async () => {
     try {
       setLoading(true);
@@ -46,6 +51,26 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Failed to fetch stats', error);
     }
+  };
+
+  const calculateStats = () => {
+    const byStatus = {
+      Applied: 0,
+      Interview: 0,
+      Offer: 0,
+      Rejected: 0
+    };
+
+    jobs.forEach(job => {
+      if (byStatus.hasOwnProperty(job.status)) {
+        byStatus[job.status]++;
+      }
+    });
+
+    setStats({
+      total: jobs.length,
+      byStatus
+    });
   };
 
   const applyFilters = () => {
@@ -109,13 +134,22 @@ const AdminDashboard = () => {
     }
 
     try {
+      // Optimistically update UI immediately
+      setJobs(prevJobs => prevJobs.filter(job => job._id !== jobId));
+      
+      // Close view modal if the deleted job was being viewed
+      if (viewJob && viewJob._id === jobId) {
+        setViewJob(null);
+      }
+      
+      // Then sync with backend
       await jobAPI.delete(jobId);
       toast.success('Job deleted successfully');
-      fetchJobs();
-      fetchStats();
     } catch (error) {
       toast.error('Failed to delete job');
       console.error(error);
+      // Revert on error
+      fetchJobs();
     }
   };
 

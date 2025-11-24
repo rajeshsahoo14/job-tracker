@@ -14,7 +14,7 @@ const ApplicantDashboard = () => {
   const [selectedJob, setSelectedJob] = useState(null);
   const [viewJob, setViewJob] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
-  
+
   const [filters, setFilters] = useState({
     status: 'all',
     sortBy: 'newest',
@@ -29,6 +29,11 @@ const ApplicantDashboard = () => {
   useEffect(() => {
     applyFilters();
   }, [jobs, filters]);
+
+  // Recalculate stats whenever jobs change
+  useEffect(() => {
+    calculateStats();
+  }, [jobs]);
 
   const fetchJobs = async () => {
     try {
@@ -52,6 +57,26 @@ const ApplicantDashboard = () => {
     }
   };
 
+  const calculateStats = () => {
+    const byStatus = {
+      Applied: 0,
+      Interview: 0,
+      Offer: 0,
+      Rejected: 0
+    };
+
+    jobs.forEach(job => {
+      if (byStatus.hasOwnProperty(job.status)) {
+        byStatus[job.status]++;
+      }
+    });
+
+    setStats({
+      total: jobs.length,
+      byStatus
+    });
+  };
+
   const applyFilters = () => {
     let filtered = [...jobs];
 
@@ -63,7 +88,7 @@ const ApplicantDashboard = () => {
     // Apply search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(job => 
+      filtered = filtered.filter(job =>
         job.company.toLowerCase().includes(searchLower) ||
         job.role.toLowerCase().includes(searchLower)
       );
@@ -121,35 +146,86 @@ const ApplicantDashboard = () => {
     }
 
     try {
+      // Optimistically update UI immediately
+      setJobs(prevJobs => prevJobs.filter(job => job._id !== jobId));
+      
+      // Then sync with backend
       await jobAPI.delete(jobId);
       toast.success('Job deleted successfully');
-      fetchJobs();
-      fetchStats();
     } catch (error) {
       toast.error('Failed to delete job');
       console.error(error);
+      // Revert on error
+      fetchJobs();
     }
   };
 
   const handleSubmitJob = async (formData) => {
     try {
       setFormLoading(true);
-      
+
       if (selectedJob) {
+        // UPDATE: Optimistically update the job immediately
+        const updatedJobData = {
+          ...selectedJob,
+          ...formData,
+          // Add status history if status changed
+          statusHistory: formData.status !== selectedJob.status
+            ? [
+                ...(selectedJob.statusHistory || []),
+                {
+                  status: formData.status,
+                  date: new Date().toISOString(),
+                  notes: formData.notes || ''
+                }
+              ]
+            : selectedJob.statusHistory
+        };
+
+        setJobs(prevJobs =>
+          prevJobs.map(job =>
+            job._id === selectedJob._id ? updatedJobData : job
+          )
+        );
+
+        // Then sync with backend
         await jobAPI.update(selectedJob._id, formData);
         toast.success('Job updated successfully');
       } else {
-        await jobAPI.create(formData);
+        // ADD: Optimistically add the new job
+        const newJobData = {
+          ...formData,
+          _id: 'temp_' + Date.now(), // Temporary ID
+          appliedDate: new Date().toISOString(),
+          statusHistory: [{
+            status: formData.status,
+            date: new Date().toISOString(),
+            notes: formData.notes || ''
+          }]
+        };
+
+        setJobs(prevJobs => [...prevJobs, newJobData]);
+
+        // Then sync with backend and replace temp ID
+        const response = await jobAPI.create(formData);
+        const createdJob = response.data.job;
+        
+        setJobs(prevJobs =>
+          prevJobs.map(job =>
+            job._id === newJobData._id ? createdJob : job
+          )
+        );
+
         toast.success('Job added successfully');
       }
-      
+
       setShowModal(false);
       setSelectedJob(null);
-      fetchJobs();
-      fetchStats();
     } catch (error) {
       toast.error(selectedJob ? 'Failed to update job' : 'Failed to add job');
       console.error(error);
+      // Revert on error
+      fetchJobs();
     } finally {
       setFormLoading(false);
     }
@@ -232,7 +308,7 @@ const ApplicantDashboard = () => {
               </div>
             </div>
 
-            <div className ="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Rejected</p>
@@ -324,13 +400,12 @@ const ApplicantDashboard = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status</label>
                   <p className="text-lg">
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                      viewJob.status === 'Applied' ? 'bg-blue-100 text-blue-800' :
-                      viewJob.status === 'Interview' ? 'bg-yellow-100 text-yellow-800' :
-                      viewJob.status === 'Offer' ? 'bg-green-100 text-green-800' :
-                      viewJob.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-purple-100 text-purple-800'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${viewJob.status === 'Applied' ? 'bg-blue-100 text-blue-800' :
+                        viewJob.status === 'Interview' ? 'bg-yellow-100 text-yellow-800' :
+                          viewJob.status === 'Offer' ? 'bg-green-100 text-green-800' :
+                            viewJob.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                              'bg-purple-100 text-purple-800'
+                      }`}>
                       {viewJob.status}
                     </span>
                   </p>
