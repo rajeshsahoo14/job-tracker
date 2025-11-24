@@ -112,7 +112,7 @@ Visit: `http://localhost:3000`
 
 ## 👨‍💻 Developer
 
-**Your Name**
+**Rajesh Sahoo**
 - GitHub: (https://github.com/rajeshsahoo14)
 - LinkedIn: [Your Profile](https://linkedin.com/in/rajeshsahoo14)
 - Email: rajeshsahoo.dev@gmail.com
