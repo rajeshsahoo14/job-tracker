@@ -13,10 +13,14 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO
+// Initialize Socket.IO with CORS
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'https://job-tracker-nu-orcin.vercel.app'  // FIXED: Added https://
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true
   }
 });
@@ -27,18 +31,26 @@ app.io = io;
 // Connect to database
 connectDB();
 
-// Middleware
+// CORS Middleware - FIXED
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'job-tracker-nu-orcin.vercel.app'  // Add your Vercel URL here
+    'https://job-tracker-nu-orcin.vercel.app'  // FIXED: Added https://
   ],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Socket.IO authentication and connection
+// Socket.IO authentication
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) {
