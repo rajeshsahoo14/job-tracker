@@ -28,7 +28,13 @@ app.io = io;
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'job-tracker-nu-orcin.vercel.app'  // Add your Vercel URL here
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
