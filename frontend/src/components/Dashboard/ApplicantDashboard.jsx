@@ -165,11 +165,10 @@ const ApplicantDashboard = () => {
     setFormLoading(true);
 
     if (selectedJob) {
-      // UPDATE: Optimistically update the job immediately
+      // UPDATE: Optimistically update
       const updatedJobData = {
         ...selectedJob,
         ...formData,
-        // Add status history if status changed
         statusHistory: formData.status !== selectedJob.status
           ? [
               ...(selectedJob.statusHistory || []),
@@ -188,19 +187,27 @@ const ApplicantDashboard = () => {
         )
       );
 
-      // Close modal and reset state IMMEDIATELY
+      // Close modal immediately
       setShowModal(false);
       setSelectedJob(null);
       setFormLoading(false);
-
-      // Then sync with backend in the background
-      await jobAPI.update(selectedJob._id, formData);
+      
+      // Show success toast IMMEDIATELY
       toast.success('Job updated successfully');
+
+      // Fire-and-forget backend sync
+      jobAPI.update(selectedJob._id, formData)
+        .catch((error) => {
+          console.error(error);
+          toast.error('Failed to sync changes');
+          fetchJobs(); // Revert on error
+        });
+
     } else {
-      // ADD: Optimistically add the new job
+      // ADD: Similar pattern
       const newJobData = {
         ...formData,
-        _id: 'temp_' + Date.now(), // Temporary ID
+        _id: 'temp_' + Date.now(),
         appliedDate: new Date().toISOString(),
         statusHistory: [{
           status: formData.status,
@@ -210,33 +217,34 @@ const ApplicantDashboard = () => {
       };
 
       setJobs(prevJobs => [...prevJobs, newJobData]);
-
-      // Close modal and reset state IMMEDIATELY
+      
+      // Close modal immediately
       setShowModal(false);
       setSelectedJob(null);
       setFormLoading(false);
-
-      // Then sync with backend and replace temp ID
-      const response = await jobAPI.create(formData);
-      const createdJob = response.data.job;
       
-      setJobs(prevJobs =>
-        prevJobs.map(job =>
-          job._id === newJobData._id ? createdJob : job
-        )
-      );
-
+      // Show success toast IMMEDIATELY
       toast.success('Job added successfully');
+
+      // Fire-and-forget backend sync
+      jobAPI.create(formData)
+        .then((response) => {
+          const createdJob = response.data.job;
+          setJobs(prevJobs =>
+            prevJobs.map(job =>
+              job._id === newJobData._id ? createdJob : job
+            )
+          );
+        })
+        .catch((error) => {
+          console.error(error);
+          toast.error('Failed to sync changes');
+          fetchJobs(); // Revert on error
+        });
     }
   } catch (error) {
-    toast.error(selectedJob ? 'Failed to update job' : 'Failed to add job');
-    console.error(error);
-    
-    // Reset loading state on error
     setFormLoading(false);
-    
-    // Revert on error
-    fetchJobs();
+    toast.error('An error occurred');
   }
 };
 
