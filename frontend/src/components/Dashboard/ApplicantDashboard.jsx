@@ -161,75 +161,84 @@ const ApplicantDashboard = () => {
   };
 
   const handleSubmitJob = async (formData) => {
-    try {
-      setFormLoading(true);
+  try {
+    setFormLoading(true);
 
-      if (selectedJob) {
-        // UPDATE: Optimistically update the job immediately
-        const updatedJobData = {
-          ...selectedJob,
-          ...formData,
-          // Add status history if status changed
-          statusHistory: formData.status !== selectedJob.status
-            ? [
-                ...(selectedJob.statusHistory || []),
-                {
-                  status: formData.status,
-                  date: new Date().toISOString(),
-                  notes: formData.notes || ''
-                }
-              ]
-            : selectedJob.statusHistory
-        };
+    if (selectedJob) {
+      // UPDATE: Optimistically update the job immediately
+      const updatedJobData = {
+        ...selectedJob,
+        ...formData,
+        // Add status history if status changed
+        statusHistory: formData.status !== selectedJob.status
+          ? [
+              ...(selectedJob.statusHistory || []),
+              {
+                status: formData.status,
+                date: new Date().toISOString(),
+                notes: formData.notes || ''
+              }
+            ]
+          : selectedJob.statusHistory
+      };
 
-        setJobs(prevJobs =>
-          prevJobs.map(job =>
-            job._id === selectedJob._id ? updatedJobData : job
-          )
-        );
+      setJobs(prevJobs =>
+        prevJobs.map(job =>
+          job._id === selectedJob._id ? updatedJobData : job
+        )
+      );
 
-        // Then sync with backend
-        await jobAPI.update(selectedJob._id, formData);
-        toast.success('Job updated successfully');
-      } else {
-        // ADD: Optimistically add the new job
-        const newJobData = {
-          ...formData,
-          _id: 'temp_' + Date.now(), // Temporary ID
-          appliedDate: new Date().toISOString(),
-          statusHistory: [{
-            status: formData.status,
-            date: new Date().toISOString(),
-            notes: formData.notes || ''
-          }]
-        };
-
-        setJobs(prevJobs => [...prevJobs, newJobData]);
-
-        // Then sync with backend and replace temp ID
-        const response = await jobAPI.create(formData);
-        const createdJob = response.data.job;
-        
-        setJobs(prevJobs =>
-          prevJobs.map(job =>
-            job._id === newJobData._id ? createdJob : job
-          )
-        );
-
-        toast.success('Job added successfully');
-      }
-
+      // Close modal and reset state IMMEDIATELY
       setShowModal(false);
       setSelectedJob(null);
-    } catch (error) {
-      toast.error(selectedJob ? 'Failed to update job' : 'Failed to add job');
-      console.error(error);
-      // Revert on error
-      fetchJobs();
-    } finally {
       setFormLoading(false);
+
+      // Then sync with backend in the background
+      await jobAPI.update(selectedJob._id, formData);
+      toast.success('Job updated successfully');
+    } else {
+      // ADD: Optimistically add the new job
+      const newJobData = {
+        ...formData,
+        _id: 'temp_' + Date.now(), // Temporary ID
+        appliedDate: new Date().toISOString(),
+        statusHistory: [{
+          status: formData.status,
+          date: new Date().toISOString(),
+          notes: formData.notes || ''
+        }]
+      };
+
+      setJobs(prevJobs => [...prevJobs, newJobData]);
+
+      // Close modal and reset state IMMEDIATELY
+      setShowModal(false);
+      setSelectedJob(null);
+      setFormLoading(false);
+
+      // Then sync with backend and replace temp ID
+      const response = await jobAPI.create(formData);
+      const createdJob = response.data.job;
+      
+      setJobs(prevJobs =>
+        prevJobs.map(job =>
+          job._id === newJobData._id ? createdJob : job
+        )
+      );
+
+      toast.success('Job added successfully');
     }
-  };
+  } catch (error) {
+    toast.error(selectedJob ? 'Failed to update job' : 'Failed to add job');
+    console.error(error);
+    
+    // Reset loading state on error
+    setFormLoading(false);
+    
+    // Revert on error
+    fetchJobs();
+  }
+};
 
   const handleCloseModal = () => {
     setShowModal(false);
