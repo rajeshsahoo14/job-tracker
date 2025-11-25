@@ -181,7 +181,7 @@ router.post('/', [
         <li><strong>Status:</strong> ${job.status}</li>
         <li><strong>Applied Date:</strong> ${job.appliedDate.toLocaleDateString()}</li>
       </ul>
-      <p>Good luck with your application!</p>
+      <p>Good luck with your application!</p> 
     `;
     
     await sendEmail({
